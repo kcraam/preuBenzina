@@ -1,8 +1,13 @@
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
+
+__author__ = "Kcraam"
+__date__ = "30/9/16"
 
 import urllib, json
 from operator import itemgetter
 from datetime import datetime, timedelta
+from math import radians, cos, sin, asin, sqrt
 
 url = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"
 ben_id = ['2836', '12913', '10141']
@@ -52,6 +57,24 @@ def main():
     for item in ben_sort:
         print item[u'R\xf3tulo'] + " Precio Gasoleo A:\t\t" + item[u'Precio Gasoleo A']
 
+
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    http://stackoverflow.com/questions/15736995/how-can-i-quickly-estimate-the-distance-between-two-latitude-longitude-points
+    http://www.johndcook.com/blog/python_longitude_latitude/
+    """
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    km = 6367 * c # Radius of earth in kilometers. Use 3956 for miles
+    # https://en.wikipedia.org/wiki/Earth_radius#Rectifying_radius
+    return km
 
 if __name__ == "__main__":
     main()
