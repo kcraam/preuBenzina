@@ -1,68 +1,125 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# Simple Bot to reply to Telegram messages
+# This program is dedicated to the public domain under the CC0 license.
+"""
+This Bot uses the Updater class to handle the bot.
 
-__author__ = "Kcraam"
-__date__ = "30/9/16"
+First, a few callback functions are defined. Then, those functions are passed to
+the Dispatcher and registered at their respective places.
+Then, the bot is started and runs until we press Ctrl-C on the command line.
 
-from telegram.ext import Updater
-from telegram.ext import MessageHandler, Filters
-from telegram.ext import CommandHandler
+Usage:
+Example of a bot-user conversation using ConversationHandler.
+Send /start to initiate the conversation.
+Press Ctrl-C on the command line or send a signal to the process to stop the
+bot.
 
-updater = Updater(token='')
-dispatcher = updater.dispatcher
+https://github.com/python-telegram-bot/python-telegram-bot/blob/master/examples/conversationbot.py
+"""
+
+from telegram import (ReplyKeyboardMarkup)
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
+                          ConversationHandler)
 
 import logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',level=logging.INFO)
 
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.DEBUG)
 
+logger = logging.getLogger(__name__)
 
-updater.start_polling()
+COMBUSTIBLE, LOCATION = range(2)
+
 
 def start(bot, update):
-        bot.sendMessage(chat_id=update.message.chat_id, text="Hola, soc un bot, parlam!")
+    reply_keyboard = [['Precio Gasoleo A', 'Precio Gasolina  98' ]]
+
+    update.message.reply_text(
+        'Hola, et fare un parell de preguntes'
+        ' i pots escriure /cancel per deixar-ho estar\n\n'
+        'Que vols?',
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+
+    return COMBUSTIBLE
 
 
-start_handler = CommandHandler('start', start)
-dispatcher.add_handler(start_handler)
+def combustible(bot, update):
+    user = update.message.from_user
+    logger.info("combustible of %s: %s" % (user.first_name, update.message.text))
+    update.message.reply_text('On ets?')
 
-def echo(bot, update):
-        bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
-
-
-echo_handler = MessageHandler([Filters.text], echo)
-dispatcher.add_handler(echo_handler)
-
-def caps(bot, update, args):
-        text_caps = ' '.join(args).upper()
-        bot.sendMessage(chat_id=update.message.chat_id, text=text_caps)
-
-caps_handler = CommandHandler('caps', caps, pass_args=True)
-dispatcher.add_handler(caps_handler)
-
-def google(bot, update, args):
-        bot.sendMessage(chat_id=update.message.chat_id, text = "*bold* _italic_ [link](http://google.com).", parse_mode = telegram.ParseMode.MARKDOWN)
+    return LOCATION
 
 
-google_handler = CommandHandler('google', google, pass_args=True)
-dispatcher.add_handler(google_handler)
+def location(bot, update):
+    user = update.message.from_user
+    user_location = update.message.location
+    logger.info("Location of %s: %f / %f"
+                % (user.first_name, user_location.latitude, user_location.longitude))
+    update.message.reply_text('OK, les benzineres mes properes son: '
+                              'A, B, C')
 
-def gasoil(bot, update, args):
-        location_keyboard = telegram.KeyboardButton(text="Posicio", request_location=True)
-        contact_keyboard = telegram.KeyboardButton(text="Contacte", request_contact=True)
-        custom_keyboard = [[location_keyboard, contact_keyboard]]
-        reply_markup = telegram.ReplyKeyboardMarkup(custom_keyboard)
-        bot.sendMessage(chat_id=update.message.chat_id, text="Digue'm on ets", reply_markup=reply_markup)
-
-gasoil_handler = CommandHandler('gasoil', gasoil, pass_args=True)
-dispatcher.add_handler(gasoil_handler)
-
-def unknown(bot, update):
-        bot.sendMessage(chat_id=update.message.chat_id, text="Ho sento, no t'he entes.")
-
-unknown_handler = MessageHandler([Filters.command], unknown)
-dispatcher.add_handler(unknown_handler)
+    return ConversationHandler.END
 
 
-updater.idle()
+def skip_location(bot, update):
+    user = update.message.from_user
+    logger.info("User %s did not send a location." % user.first_name)
+    update.message.reply_text('Si noem dius on ets no puc buscar-te les benzineres.')
 
-# https://github.com/python-telegram-bot/python-telegram-bot/wiki/Code-snippets
+    return ConversationHandler.END
+
+
+def cancel(bot, update):
+    user = update.message.from_user
+    logger.info("User %s canceled the conversation." % user.first_name)
+    update.message.reply_text('Adeu!')
+
+    return ConversationHandler.END
+
+
+def error(bot, update, error):
+    logger.warn('Update "%s" caused error "%s"' % (update, error))
+
+
+def main():
+    # Create the EventHandler and pass it your bot's token.
+    updater = Updater("TOKEN")
+
+    # Get the dispatcher to register handlers
+    dp = updater.dispatcher
+
+    # Add conversation handler with the states COMBUSTIBLE, PHOTO, LOCATION and BIO
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+
+        states={
+            COMBUSTIBLE: [RegexHandler('.*(Gasoleo|Gasolina|Other).*', combustible)],
+
+            LOCATION: [MessageHandler([Filters.location], location),
+                       CommandHandler('skip', skip_location)]
+
+        },
+
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+
+    dp.add_handler(conv_handler)
+
+    # log all errors
+    dp.add_error_handler(error)
+
+    # Start the Bot
+    updater.start_polling()
+
+    # Run the bot until the you presses Ctrl-C or the process receives SIGINT,
+    # SIGTERM or SIGABRT. This should be used most of the time, since
+    # start_polling() is non-blocking and will stop the bot gracefully.
+    updater.idle()
+
+
+if __name__ == '__main__':
+    main()
